@@ -28,7 +28,7 @@ async function mockApi(browser: BrowserPage, role: Role) {
     const path = new URL(request.url()).pathname;
     const method = request.method();
     const headers = {
-      'access-control-allow-origin': 'http://localhost:5173',
+      'access-control-allow-origin': new URL(browser.url()).origin,
       'access-control-allow-headers': 'Authorization,Content-Type',
       'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
     };

@@ -1,3 +1,5 @@
+import { SessionEditor } from './SessionEditor';
+import { TermsPage } from './TermsPage';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -200,4 +202,76 @@ describe('campus-local timetable and finder', () => {
     expect(screen.queryByRole('button', { name: 'Create session' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add unavailable block' })).not.toBeInTheDocument();
   });
+  it('uses readable weekday checkboxes and sends the correct coverage mask', async () => {
+    renderWorkspace(<TermsPage />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Confirm faculty coverage' }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('checkbox', { name: 'Monday' })).toBeChecked();
+    expect(within(dialog).getByRole('checkbox', { name: 'Sunday' })).not.toBeChecked();
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Sunday' }));
+    await waitFor(() =>
+      expect(within(dialog).getByRole('option', { name: 'Test Faculty · #1' })).toBeInTheDocument(),
+    );
+    await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Faculty' }), '1');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+    await waitFor(() =>
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.some(
+            ([url, init]) =>
+              new URL(String(url)).pathname === '/api/v1/timetable/terms/1/coverage' &&
+              init?.method === 'PUT' &&
+              JSON.parse(String(init.body)).dayMask === 127,
+          ),
+      ).toBe(true),
+    );
+  });
+  it.each(['create', 'edit'] as const)(
+    'sends a validated %s session payload and closes on success',
+    async (mode) => {
+      const close = vi.fn();
+      renderWorkspace(
+        <SessionEditor
+          term={term}
+          session={mode === 'edit' ? session : undefined}
+          onClose={close}
+        />,
+      );
+      const dialog = screen.getByRole('dialog');
+      for (const [label, option] of [
+        ['Section', 'A · #1'],
+        ['Subject', 'Algorithms · #1'],
+        ['Faculty', 'Test Faculty · #1'],
+        ['Room', 'Room · #1'],
+      ] as const) {
+        await waitFor(() =>
+          expect(within(dialog).getByRole('option', { name: option })).toBeInTheDocument(),
+        );
+        await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: label }), '1');
+      }
+      expect(within(dialog).getByRole('option', { name: 'Monday' })).toBeInTheDocument();
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+      await waitFor(() => expect(close).toHaveBeenCalledOnce());
+      const request = vi
+        .mocked(fetch)
+        .mock.calls.find(
+          ([url, init]) =>
+            new URL(String(url)).pathname ===
+              (mode === 'edit' ? '/api/v1/timetable/sessions/1' : '/api/v1/timetable/sessions') &&
+            init?.method === (mode === 'edit' ? 'PUT' : 'POST'),
+        );
+      expect(request).toBeDefined();
+      expect(JSON.parse(String(request![1]?.body))).toMatchObject({
+        academicTermId: 1,
+        sectionId: 1,
+        subjectId: 1,
+        facultyId: 1,
+        roomId: 1,
+        dayOfWeek: 1,
+        status: 'DRAFT',
+        sessionType: 'LECTURE',
+      });
+    },
+  );
 });

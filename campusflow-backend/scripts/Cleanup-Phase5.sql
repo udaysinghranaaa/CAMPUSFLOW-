@@ -7,7 +7,17 @@ DO $$
 DECLARE m JSONB:=current_setting('campusflow.cleanup_manifest')::jsonb; r RECORD;
 BEGIN
  PERFORM 1 FROM departments WHERE id=(m->>'departmentId')::bigint AND code=m->>'code' FOR UPDATE;
- IF NOT FOUND THEN RAISE EXCEPTION 'Verification department ownership not proven; preserve all rows'; END IF;
+ IF NOT FOUND THEN
+  IF EXISTS(SELECT 1 FROM departments WHERE id=(m->>'departmentId')::bigint)
+   OR EXISTS(SELECT 1 FROM timetable_sessions s JOIN jsonb_to_recordset(m->'sessions') AS x(id bigint) ON x.id=s.id)
+   OR EXISTS(SELECT 1 FROM faculty_unavailability b JOIN jsonb_to_recordset(m->'blocks') AS x(id bigint) ON x.id=b.id)
+   OR EXISTS(SELECT 1 FROM faculty_schedule_coverage c JOIN jsonb_to_recordset(m->'coverage') AS x(id bigint) ON x.id=c.id)
+   OR EXISTS(SELECT 1 FROM subjects s JOIN jsonb_to_recordset(m->'subjects') AS x(id bigint) ON x.id=s.id)
+   OR EXISTS(SELECT 1 FROM academic_terms t JOIN jsonb_to_recordset(m->'terms') AS x(id bigint) ON x.id=t.id)
+   OR EXISTS(SELECT 1 FROM rooms r JOIN jsonb_to_recordset(m->'rooms') AS x(id bigint) ON x.id=r.id)
+  THEN RAISE EXCEPTION 'Verification department ownership not proven; preserve all rows'; END IF;
+  RETURN; -- Idempotent retry only when all captured Phase5 rows are already absent.
+ END IF;
  FOR r IN SELECT * FROM jsonb_to_recordset(m->'sessions') AS x(id bigint,term_id bigint) LOOP
   IF EXISTS(SELECT 1 FROM timetable_sessions WHERE id=r.id AND academic_term_id<>r.term_id) THEN RAISE EXCEPTION 'Session ownership mismatch'; END IF;
   IF EXISTS(SELECT 1 FROM timetable_sessions s JOIN academic_terms t ON t.id=s.academic_term_id WHERE s.id=r.id AND t.department_id<>(m->>'departmentId')::bigint) THEN RAISE EXCEPTION 'Session department mismatch'; END IF;

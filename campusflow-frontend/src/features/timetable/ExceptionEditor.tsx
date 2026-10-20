@@ -1,6 +1,7 @@
 import type { ScheduleField } from './ScheduleForm';
 import { z } from 'zod';
-import { ScheduleForm, dateField, positiveId, timeField } from './ScheduleForm';
+import { ScheduleForm } from './ScheduleForm';
+import { dateField, positiveId, timeField } from './schemas';
 import type { Session, Term } from './types';
 import { useScheduleMutation } from './hooks';
 const schema = z

@@ -10,21 +10,13 @@ import { RelationshipPicker } from '../management/RelationshipPicker';
 export interface ScheduleField {
   name: string;
   label: string;
-  type?: 'date' | 'time' | 'number' | 'text' | 'select' | 'relation';
+  type?: 'date' | 'time' | 'number' | 'text' | 'select' | 'relation' | 'days';
   resource?: Resource;
   params?: Record<string, string>;
-  options?: string[];
+  options?: (string | { value: string; label: string })[];
   optional?: boolean;
   disabled?: boolean;
 }
-export const requiredText = z.string().trim().min(1, 'This field is required.');
-export const positiveId = requiredText
-  .regex(/^[1-9][0-9]*$/, 'Use a positive whole number.')
-  .refine((value) => Number.isSafeInteger(Number(value)), 'Number is too large.');
-export const dateField = z.iso.date('Enter a valid date.');
-export const timeField = z
-  .string()
-  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Enter a valid campus-local time.');
 export function ScheduleForm({
   title,
   defaults,
@@ -107,6 +99,35 @@ export function ScheduleForm({
                     />
                   )}
                 />
+              ) : field.type === 'days' ? (
+                <Controller
+                  name={field.name}
+                  control={control}
+                  render={({ field: input }) => (
+                    <div className="weekday-options" role="group" aria-label={field.label}>
+                      {[
+                        'Monday',
+                        'Tuesday',
+                        'Wednesday',
+                        'Thursday',
+                        'Friday',
+                        'Saturday',
+                        'Sunday',
+                      ].map((label, index) => (
+                        <label key={label}>
+                          <input
+                            type="checkbox"
+                            checked={(Number(input.value) & (1 << index)) !== 0}
+                            onChange={() =>
+                              input.onChange(String(Number(input.value) ^ (1 << index)))
+                            }
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                />
               ) : field.type === 'select' ? (
                 <select
                   id={`schedule-${field.name}`}
@@ -114,7 +135,12 @@ export function ScheduleForm({
                   aria-invalid={!!errors[field.name]}
                 >
                   {field.options?.map((value) => (
-                    <option key={value}>{value}</option>
+                    <option
+                      key={typeof value === 'string' ? value : value.value}
+                      value={typeof value === 'string' ? value : value.value}
+                    >
+                      {typeof value === 'string' ? value : value.label}
+                    </option>
                   ))}
                 </select>
               ) : (

@@ -47,7 +47,7 @@ for (const width of [375, 1280]) {
       const path = new URL(route.request().url()).pathname;
       const method = route.request().method();
       const headers = {
-        'access-control-allow-origin': 'http://localhost:5173',
+        'access-control-allow-origin': new URL(page.url()).origin,
         'access-control-allow-headers': 'Authorization,Content-Type',
         'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
       };

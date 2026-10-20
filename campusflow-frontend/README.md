@@ -69,3 +69,7 @@ real backend login, role boundaries and CRUD checks pass locally.
 This sibling folder has no Git repository or remote initialized. Recommend a separate repository named
 **CAMPUSFLOW-FRONTEND**. The backend repository/history remain untouched. Ignore files exclude node_modules,
 dist, test artifacts, local environments and logs. No automatic commits, pushes or deployment.
+
+## Phase5
+
+See [FRONTEND-PHASE5.md](FRONTEND-PHASE5.md) for Faculty Finder, academic scheduling, secure verification, actual results and remaining live-integration gates. Existing memory-only session policy is unchanged.

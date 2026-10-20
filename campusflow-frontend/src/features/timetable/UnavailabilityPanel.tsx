@@ -6,7 +6,8 @@ import { api, errorMessage } from '../../services/apiClient';
 import { useAuth } from '../auth/authContext';
 import { RelationshipPicker } from '../management/RelationshipPicker';
 import { useScheduleMutation } from './hooks';
-import { ScheduleForm, dateField, timeField, positiveId } from './ScheduleForm';
+import { ScheduleForm } from './ScheduleForm';
+import { dateField, timeField, positiveId } from './schemas';
 import type { Unavailable } from './types';
 import { campusDate, clockLabel } from './time';
 import {

@@ -12,7 +12,8 @@ import {
   EmptyState,
   StatusBadge,
 } from '../../components/ui/feedback';
-import { ScheduleForm, requiredText, positiveId, dateField, timeField } from './ScheduleForm';
+import { ScheduleForm } from './ScheduleForm';
+import { requiredText, positiveId, dateField, timeField } from './schemas';
 import { useScheduleMutation } from './hooks';
 import type { Term } from './types';
 import { campusDate, addDays } from './time';
@@ -34,7 +35,9 @@ const termSchema = z
 const coverageSchema = z
   .object({
     facultyId: positiveId,
-    dayMask: positiveId.refine((v) => Number(v) <= 127, 'Use a day mask between1 and127.'),
+    dayMask: z
+      .string()
+      .refine((v) => Number(v) >= 1 && Number(v) <= 127, 'Select at least one weekday.'),
     startTime: timeField,
     endTime: timeField,
   })
@@ -161,7 +164,7 @@ export function TermsPage() {
         <ScheduleForm
           title={`Confirm coverage · ${coverage.name}`}
           onClose={() => setCoverage(null)}
-          note="This certifies schedule knowledge, not physical presence. Day mask: Mon=1, Tue=2, Wed=4, Thu=8, Fri=16, Sat=32, Sun=64. Add the required values (Mon–Sat=63)."
+          note="This certifies schedule knowledge, not physical presence. Select the weekdays and time window whose teaching schedule is complete."
           defaults={{ facultyId: '', dayMask: '63', startTime: '08:00', endTime: '18:00' }}
           schema={coverageSchema}
           fields={() => [
@@ -172,7 +175,7 @@ export function TermsPage() {
               resource: 'faculty',
               params: { departmentId: String(coverage.departmentId), active: 'true' },
             },
-            { name: 'dayMask', label: 'Covered weekdays (bitmask)', type: 'number' },
+            { name: 'dayMask', label: 'Covered weekdays', type: 'days' },
             { name: 'startTime', label: 'Coverage start', type: 'time' },
             { name: 'endTime', label: 'Coverage end', type: 'time' },
           ]}

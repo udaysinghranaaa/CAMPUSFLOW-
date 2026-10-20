@@ -74,8 +74,20 @@ try {
  foreach($i in 0..1){$room=Api POST '/api/v1/rooms' 201 @{code="P5R${i}_$tag";name='Verification room';building='Verification';floor='1';type='CLASSROOM';capacity=60;active=$true};$owned.rooms+=@{id=$room.id;code=$room.code}}
  $subject=Api POST '/api/v1/subjects' 201 @{code="P5_$tag";name='Verification subject';departmentId=$dep.id;description=$null;active=$true};$owned.subjects+=@{id=$subject.id;code=$subject.code}
  $term=Api POST '/api/v1/timetable/terms' 201 @{name="Phase5 $tag";departmentId=$dep.id;semester=1;startDate=$date;endDate=$end;active=$true};$owned.terms+=@{id=$term.id;name=$term.name}
+ $null=Api GET "/api/v1/subjects?departmentId=$($dep.id)&name=Verification" 200
+ $null=Api GET "/api/v1/subjects/$($subject.id)" 200
+ $null=Api PUT "/api/v1/subjects/$($subject.id)" 200 @{code=$subject.code;name='Updated verification subject';departmentId=$dep.id;description='Verified';active=$true}
+ $null=Api PATCH "/api/v1/subjects/$($subject.id)/status" 200 @{active=$false}
+ $null=Api PATCH "/api/v1/subjects/$($subject.id)/status" 200 @{active=$true}
+ $null=Api GET "/api/v1/rooms?name=Verification&type=CLASSROOM&active=true" 200
+ $null=Api GET "/api/v1/rooms/$($owned.rooms[0].id)" 200
+ $null=Api PUT "/api/v1/rooms/$($owned.rooms[0].id)" 200 @{code=$owned.rooms[0].code;name='Updated verification room';building='Verification';floor='1';type='CLASSROOM';capacity=60;active=$true}
+ $null=Api PATCH "/api/v1/rooms/$($owned.rooms[0].id)/status" 200 @{active=$false}
+ $null=Api PATCH "/api/v1/rooms/$($owned.rooms[0].id)/status" 200 @{active=$true}
+ $null=Api GET "/api/v1/timetable/terms/$($term.id)" 200
  $body=@{academicTermId=$term.id;sectionId=$sections[0].id;subjectId=$subject.id;facultyId=$faculty[0].id;roomId=$owned.rooms[0].id;dayOfWeek=1;startTime='09:00';endTime='10:00';effectiveStartDate=$date;effectiveEndDate=$end;status='DRAFT';sessionType='LECTURE'}
  $session=Api POST '/api/v1/timetable/sessions' 201 $body;$owned.sessions+=@{id=$session.id;term_id=$term.id}
+ $null=Api PUT "/api/v1/timetable/sessions/$($session.id)" 200 $body
  $null=Api PATCH "/api/v1/timetable/sessions/$($session.id)/publish" 200
  $clash=$body.Clone();$clash.sectionId=$sections[1].id;$clash.roomId=$owned.rooms[1].id;$null=Api POST '/api/v1/timetable/sessions' 409 $clash
  $clash=$body.Clone();$clash.sectionId=$sections[1].id;$clash.facultyId=$faculty[1].id;$null=Api POST '/api/v1/timetable/sessions' 409 $clash
@@ -97,15 +109,23 @@ try {
  $available=Api GET "/api/v1/faculty-finder/$($faculty[0].id)/availability?date=$date&startTime=12:00&endTime=13:00" 200 -Bearer $sc.accessToken;if($available.state -cne 'UNKNOWN'){throw 'Missing coverage must yield UNKNOWN.'}
  $coverage=Api PUT "/api/v1/timetable/terms/$($term.id)/coverage" 200 @{facultyId=$faculty[0].id;dayMask=63;startTime='08:00';endTime='18:00'};$owned.coverage+=@{id=$coverage.id;term_id=$term.id;faculty_id=$faculty[0].id}
  foreach($check in @(@{from='09:00';to='10:00';state='BUSY'},@{from='11:00';to='12:00';state='UNAVAILABLE'},@{from='12:00';to='13:00';state='FREE'})){$result=Api GET "/api/v1/faculty-finder/$($faculty[0].id)/availability?date=$date&startTime=$($check.from)&endTime=$($check.to)" 200 -Bearer $sc.accessToken;if($result.state -cne $check.state -or $result.PSObject.Properties.Name -contains 'reason' -or $result.PSObject.Properties.Name -contains 'email'){throw 'Finder state/privacy mismatch.'}}
+ $adjacent=$body.Clone();$adjacent.startTime='10:00';$adjacent.endTime='11:00'
+ $second=Api POST '/api/v1/timetable/sessions' 201 $adjacent;$owned.sessions+=@{id=$second.id;term_id=$term.id}
+ $editClash=$adjacent.Clone();$editClash.startTime='09:30';$editClash.endTime='10:30'
+ $null=Api PUT "/api/v1/timetable/sessions/$($second.id)" 409 $editClash
+ $null=Api PATCH "/api/v1/timetable/sessions/$($second.id)/publish" 200
  $null=Api POST "/api/v1/timetable/sessions/$($session.id)/exceptions" 201 @{exceptionDate=$date;type='RESCHEDULED';startTime='08:00';endTime='09:00';facultyId=$faculty[0].id;roomId=$owned.rooms[0].id;reason='Verification reschedule'}
  $null=Api POST "/api/v1/timetable/sessions/$($session.id)/exceptions" 201 @{exceptionDate=$date;type='CANCELLED';reason='Verification cancellation'}
- $view=Api GET "/api/v1/timetable/student/me?weekStart=$date" 200 -Bearer $sc.accessToken;if($view.sessions.Count -ne 0){throw 'Dated cancellation not reflected.'}
+ $view=Api GET "/api/v1/timetable/student/me?weekStart=$date" 200 -Bearer $sc.accessToken;if(@($view.sessions|Where-Object{$_.sessionId -eq $session.id}).Count -ne 0 -or $view.sessions.Count -ne 1){throw 'Dated cancellation not reflected.'}
  $null=Api PATCH "/api/v1/timetable/sessions/$($session.id)/cancel" 200
  Cleanup
+ $unitTotal=(Get-ChildItem target/surefire-reports/TEST-*.xml|ForEach-Object{([xml](Get-Content -Raw $_.FullName)).testsuite.tests}|Measure-Object -Sum).Sum
+ $integrationTotal=(Get-ChildItem target/failsafe-reports/TEST-*.xml|ForEach-Object{([xml](Get-Content -Raw $_.FullName)).testsuite.tests}|Measure-Object -Sum).Sum
+ Write-Host "Actual Phase5 totals: $unitTotal regular; $integrationTotal PostgreSQL integration tests."
  $passed=$true
  Write-Host 'PASS Phase5: all Maven/PostgreSQL tests, Phase1-4 regressions, live scheduling/ownership/finder checks and fixture cleanup.'
 } finally {
- try{if($baseUrl -and $owned.departmentId){Cleanup}}catch{$passed=$false;Write-Warning "Cleanup blocked. Preserve owned department $($owned.departmentId), term/session/account IDs and inspect locally."}
+ try{if($baseUrl -and $owned.departmentId){Cleanup}}catch{$passed=$false;$recovery=Join-Path $project ("target/phase5-owned-"+$owned.code+".json");@{academic=$owned;accounts=$accounts;student=$student;sections=$sections;batch=$batch;faculty=$faculty}|ConvertTo-Json -Depth 10|Set-Content -LiteralPath $recovery -Encoding UTF8;Write-Warning "Cleanup blocked. Public fixture identity manifest saved at $recovery (no tokens or passwords). Preserve these rows and inspect ownership locally."}
  try{End-VerificationSecurity -Snapshot $security -BaseUrl $baseUrl}finally{if($server){$server.Refresh();if(-not $server.HasExited){$server.Kill();$server.WaitForExit(10000)|Out-Null}};foreach($key in $saved.Keys){[Environment]::SetEnvironmentVariable($key,$saved[$key],'Process')};$sc=$null;$fc=$null;$password=$null;Pop-Location}
  if(-not $passed){Write-Host 'FAIL Phase5 verification or cleanup; no database reset or broad deletion was attempted.'}
 }

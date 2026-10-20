@@ -1,6 +1,7 @@
 import type { ScheduleField } from './ScheduleForm';
 import { z } from 'zod';
-import { ScheduleForm, positiveId, dateField, timeField } from './ScheduleForm';
+import { ScheduleForm } from './ScheduleForm';
+import { positiveId, dateField, timeField } from './schemas';
 import type { Term, Session } from './types';
 import { useScheduleMutation } from './hooks';
 const schema = z
@@ -92,9 +93,17 @@ export function SessionEditor({
         },
         {
           name: 'dayOfWeek',
-          label: 'Weekday (Monday=1)',
+          label: 'Weekday',
           type: 'select',
-          options: ['1', '2', '3', '4', '5', '6', '7'],
+          options: [
+            'Monday',
+            'Tuesday',
+            'Wednesday',
+            'Thursday',
+            'Friday',
+            'Saturday',
+            'Sunday',
+          ].map((label, index) => ({ value: String(index + 1), label })),
         },
         { name: 'startTime', label: 'Start time', type: 'time' },
         { name: 'endTime', label: 'End time', type: 'time' },
